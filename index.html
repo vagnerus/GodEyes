@@ -15,6 +15,7 @@
 <body>
 
   <canvas id="particles-canvas"></canvas>
+  <div class="real-mode-ribbon">REAL MODE</div>
 
   <!-- ── SIDEBAR ── -->
   <aside id="sidebar">
@@ -88,6 +89,22 @@
         <svg viewBox="0 0 24 24" fill="none"><path d="M23 7l-7 5 7 5V7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
         <span>Câmeras</span>
       </button>
+
+      <!-- ── TUNNEL STATUS ── -->
+      <div class="backend-status-card" id="tunnel-card">
+        <div class="status-header">
+          <span class="status-title">Backend Local</span>
+          <div class="status-badge">
+            <div class="status-dot-pulse" id="backend-dot"></div>
+            <span id="backend-label">OFFLINE</span>
+          </div>
+        </div>
+        <div class="tunnel-link-box" id="tunnel-url">Carregando...</div>
+        <div class="tunnel-actions">
+          <button class="btn-mini" onclick="window.setBackendPrompt()">Trocar Túnel</button>
+          <button class="btn-mini" onclick="checkBackendStatus()">Recarregar</button>
+        </div>
+      </div>
     </nav>
 
     <div class="sidebar-footer">

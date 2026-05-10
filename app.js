@@ -1008,10 +1008,17 @@ const API_BASE = BACKEND_URL + '/api';
 
 window.setBackend = function(url) {
     if(url) {
-        localStorage.setItem('godeyes_backend', url.replace(/\/$/, ''));
-        alert('Backend configurado com sucesso! A página será recarregada.');
+        let cleanUrl = url.replace(/\/$/, '');
+        if (!cleanUrl.startsWith('http')) cleanUrl = 'https://' + cleanUrl;
+        localStorage.setItem('godeyes_backend', cleanUrl);
         location.reload();
     }
+};
+
+window.setBackendPrompt = function() {
+    let current = localStorage.getItem('godeyes_backend') || 'localhost:5000';
+    let url = prompt("🔗 CONFIGURAR BACKEND / TÚNEL:\n\nCole aqui o link do Túnel (ex: https://xxxx.lhr.life) ou deixe vazio para usar localhost.", current);
+    if (url !== null) window.setBackend(url || window.location.origin);
 };
 
 // Se estiver rodando na Nuvem (Vercel, Netlify, Github Pages), solicita o Link do Túnel.
@@ -1029,35 +1036,56 @@ let scanPollInterval = null;
 
 // ── Check if backend server is running ──
 async function checkBackendStatus() {
+  const urlEl = document.getElementById('tunnel-url');
+  const dot = document.getElementById('backend-dot');
+  const label = document.getElementById('backend-label');
+  const currentUrl = localStorage.getItem('godeyes_backend') || window.location.origin;
+
+  if (urlEl) urlEl.textContent = currentUrl.replace(/^https?:\/\//, '');
+
   try {
-    const res = await fetch(API_BASE + '/status', { signal: AbortSignal.timeout(2000) });
+    const res = await fetch((localStorage.getItem('godeyes_backend') || window.location.origin) + '/api/status', { signal: AbortSignal.timeout(2500) });
     const data = await res.json();
     backendOnline = data.online === true;
+    
+    // AUTO-ATIVAR MODO REAL
+    if (backendOnline && !realModeActive) {
+      realModeActive = true;
+      if (typeof showGlobalNotification === 'function') {
+        showGlobalNotification('🟢 Backend detectado! Modo Real ativado.', 'ok');
+      }
+    }
   } catch (_) {
     backendOnline = false;
-    realModeActive = false; // Fall back to mocked behavior if server stops
+    // Não desativamos o realModeActive imediatamente para evitar flapping, 
+    // mas o UI mostrará o erro.
   }
   updateBackendIndicator();
 }
 
 function updateBackendIndicator() {
+  const dot = document.getElementById('backend-dot');
+  const label = document.getElementById('backend-label');
   const btn = document.getElementById('real-mode-btn');
-  const dot = document.getElementById('backend-status-dot');
-  if (dot) {
-    dot.style.background = backendOnline ? 'var(--neon)' : 'var(--red)';
-    dot.title = backendOnline ? 'Backend online' : 'Backend offline';
+
+  if (dot) dot.className = 'status-dot-pulse' + (backendOnline ? ' online' : '');
+  if (label) {
+    label.textContent = backendOnline ? 'ONLINE' : 'OFFLINE';
+    label.style.color = backendOnline ? 'var(--neon)' : 'var(--red)';
   }
+  
+  // Toggle ribbon and body class
+  document.body.classList.toggle('real-mode-active', realModeActive && backendOnline);
+
   if (btn) {
-    btn.style.borderColor = realModeActive && backendOnline
-      ? 'rgba(0,245,160,.5)' : '';
-    btn.style.color = realModeActive && backendOnline
-      ? 'var(--neon)' : '';
+    btn.style.borderColor = realModeActive && backendOnline ? 'rgba(0,245,160,0.5)' : '';
+    btn.style.color = realModeActive && backendOnline ? 'var(--neon)' : '';
+    btn.innerHTML = `<span>${realModeActive && backendOnline ? '🟢 MODO REAL' : '🔵 SIMULAÇÃO'}</span>`;
   }
 }
 
-// Poll backend every 5s
-setInterval(checkBackendStatus, 5000);
-checkBackendStatus();
+
+// Backend polling is handled in DOMContentLoaded
 
 // ── Toggle Real Mode ──
 function toggleRealMode() {
@@ -1188,29 +1216,23 @@ function renderRealDevices(devices) {
   if (typeof updateMap === 'function') updateMap();
 }
 
-// Override removed; startScan now natively handles realMode fallbacks.
-
-// Inject "Modo Real" button into sidebar after DOM loads
+// Initialize Tunnel UI and Status
 document.addEventListener('DOMContentLoaded', () => {
-  const navContainer = document.querySelector('.nav') || document.body;
-  if (navContainer) {
-    // Status dot
-    const dot = document.createElement('span');
-    dot.id = 'backend-status-dot';
-    dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block;flex-shrink:0';
-    dot.title = 'Backend offline';
-
-    // Toggle button
-    const btn = document.createElement('button');
-    btn.id = 'real-mode-btn';
-    btn.className = 'nav-btn'; // Use consistent class
-    btn.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid rgba(0,245,160,0.3);padding:10px;font-size:12px;margin-top:auto;color:var(--neon);font-weight:bold;background:rgba(0,245,160,0.1)';
-    btn.onclick = toggleRealMode;
-    btn.innerHTML = '<span>MODO REAL</span>';
-    btn.title = 'Alternar entre Simulação e Scan Real (requer server.py)';
-    btn.prepend(dot);
-
-    navContainer.appendChild(btn);
-  }
+  // Try to connect immediately
   checkBackendStatus();
+  
+  // Update UI every 5 seconds
+  setInterval(checkBackendStatus, 5000);
+
+  // If on Vercel and no backend, show help
+  const isCloud = window.location.hostname.includes('vercel.app') || 
+                (window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('192.168.'));
+  
+  if (isCloud && !localStorage.getItem('godeyes_backend')) {
+    setTimeout(() => {
+      if (typeof showGlobalNotification === 'function') {
+        showGlobalNotification('☁️ Vercel Detectado: Configure seu Túnel para habilitar o Modo Real.', 'warn');
+      }
+    }, 2000);
+  }
 });

@@ -672,15 +672,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   })();
 
-  // Keep polling every 4 seconds
-  setInterval(async () => {
-    try {
-      const alive = await isBackendAlive();
-      window.backendOnline = alive;
-    } catch(e) {
-      window.backendOnline = false;
-    }
-  }, 4000);
+
+  // Patch showPanel to init terminal when needed
 
   // Patch showPanel to init terminal when needed
   const prevShow = window.showPanel;
