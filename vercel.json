@@ -1,17 +1,10 @@
 {
   "version": 2,
-  "name": "godeyes",
-  "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
+  "cleanUrls": true,
   "routes": [
     {
       "src": "/(.*)",
       "dest": "/$1"
     }
-  ],
-  "cleanUrls": true
+  ]
 }

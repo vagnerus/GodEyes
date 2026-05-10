@@ -47,7 +47,10 @@ try:
 except ImportError:
     REQUESTS_OK = False; print("[!] requests não instalado")
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+# Configura diretório base para servir arquivos estáticos corretamente
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
