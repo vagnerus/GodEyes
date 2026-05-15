@@ -89,10 +89,12 @@ echo Instalando dependencias...
 %PY% -m pip install flask flask-cors python-nmap requests paramiko dnspython python-whois
 echo.
 
-echo Iniciando servidor em http://localhost:5000
+echo [🚀] Iniciando servidor em http://localhost:5000
+echo [📡] Tunelamento e Auto-Descoberta para Vercel ativos!
+echo.
 echo Pressione Ctrl+C para parar.
 echo Abrindo GodEyes no navegador...
-start "GodEyes" http://localhost:5000
+start "" http://localhost:5000
 echo.
 
 %PY% "%~dp0server.py"

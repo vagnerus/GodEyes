@@ -1,0 +1,105 @@
+/* ═══════════════════════════════════════════
+   GodEyes – terminal.css
+   CRT & Hacker Terminal Styling
+   ═══════════════════════════════════════════ */
+
+.terminal-container {
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid var(--neon-green);
+  border-radius: 8px;
+  height: 500px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
+}
+
+.terminal-header {
+  background: rgba(57, 255, 20, 0.1);
+  padding: 8px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(57, 255, 20, 0.3);
+}
+
+.terminal-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.control {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.control.red { background: #ff5f56; }
+.control.yellow { background: #ffbd2e; }
+.control.green { background: #27c93f; }
+
+.terminal-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--neon-green);
+  letter-spacing: 1px;
+}
+
+.terminal-body {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--neon-green);
+  text-shadow: 0 0 5px rgba(57, 255, 20, 0.5);
+}
+
+/* CRT Scanline Effect */
+.terminal-body::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  z-index: 2;
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
+}
+
+.console-line {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.console-line.info { color: var(--neon-cyan); }
+.console-line.success { color: var(--neon-green); }
+.console-line.warn { color: var(--neon-orange); }
+.console-line.error { color: var(--neon-red); }
+.console-line.dim { opacity: 0.5; }
+
+.terminal-input-row {
+  display: flex;
+  padding: 10px 15px;
+  background: rgba(57, 255, 20, 0.05);
+  border-top: 1px solid rgba(57, 255, 20, 0.2);
+}
+
+.terminal-prompt {
+  color: var(--neon-green);
+  margin-right: 10px;
+}
+
+#terminal-input {
+  background: transparent;
+  border: none;
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  flex: 1;
+  outline: none;
+}

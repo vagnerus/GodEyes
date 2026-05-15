@@ -243,6 +243,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const origBtn = document.getElementById('scan-btn');
   if (origBtn) {
     origBtn.addEventListener('click', () => {
+      // Prioritize Real/Cloud Scan over Simulation
+      if (typeof window.startRealScan === 'function') {
+        window.startRealScan();
+      } else if (typeof startScan === 'function') {
+        startScan();
+      }
       setTimeout(saveScanToHistory, 8000);
     });
   }

@@ -1,0 +1,77 @@
+/* ═══════════════════════════════════════════
+   GodEyes – glassmorphism.css
+   Glassmorphism Utility Classes
+   ═══════════════════════════════════════════ */
+
+.glass-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-card);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+  transition: border-color var(--transition-mid), box-shadow var(--transition-mid);
+  overflow: hidden;
+}
+
+.glass-card:hover {
+  border-color: rgba(0,255,200,0.3);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.3), 0 0 20px rgba(0,255,200,0.1), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.glass-card__header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.glass-card__title {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-cyan);
+}
+
+.glass-card__body {
+  padding: 20px;
+}
+
+/* Modifier Classes */
+.glass-card--danger { border-color: rgba(255, 0, 60, 0.3); }
+.glass-card--danger .glass-card__title { color: var(--neon-red); text-shadow: var(--glow-red); }
+
+.glass-card--warning { border-color: rgba(255, 107, 0, 0.3); }
+.glass-card--warning .glass-card__title { color: var(--neon-orange); }
+
+.glass-card--success { border-color: rgba(57, 255, 20, 0.3); }
+.glass-card--success .glass-card__title { color: var(--neon-green); text-shadow: var(--glow-green); }
+
+/* Modal Background Overlay */
+.glass-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.glass-modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}

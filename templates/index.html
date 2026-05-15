@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GodEyes | Cyber Security Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/glassmorphism.css">
+    <link rel="stylesheet" href="/css/animations.css">
+    <link rel="stylesheet" href="/css/terminal.css">
+    <link rel="stylesheet" href="/css/terminal.css">
+</head>
+<body>
+    <canvas id="particles-bg"></canvas>
+    
+    <div id="app-container">
+        <aside id="sidebar">
+            <div class="logo">
+                <span class="neon-cyan">GOD</span><span class="neon-green">EYES</span>
+            </div>
+            <div id="system-status" class="status-online">
+                <span class="pulse-dot"></span> SISTEMA ONLINE
+            </div>
+            <nav>
+                <div class="nav-item active" onclick="showPanel('dashboard')">Dashboard Geral</div>
+                <div class="nav-item" onclick="showPanel('scanner')">Scanner de Rede</div>
+                <div class="nav-item" onclick="showPanel('threats')">Mapa de Ameaças</div>
+                <div class="nav-item" onclick="showPanel('satellites')">Satélites Globais</div>
+                <div class="nav-item" onclick="showPanel('terminal')">Terminal Pen-Test</div>
+                <div class="nav-item" onclick="showPanel('vpn')">VPN & Proxies</div>
+            </nav>
+        </aside>
+
+        <header id="header">
+            <div class="breadcrumb">GOD EYES > DASHBOARD</div>
+            <div id="clock">00:00:00</div>
+            <div class="system-metrics">
+                <div class="metric">CPU: <span id="cpu-usage">--%</span></div>
+                <div class="metric">RAM: <span id="ram-usage">--GB</span></div>
+                <div class="metric">PING: <span id="ping-ms">--ms</span></div>
+            </div>
+        </header>
+
+        <main id="main-content">
+            <!-- Content will be injected here -->
+            <div id="view-dashboard" class="view active">
+                <div class="kpi-grid">
+                    <div class="glass-card stagger-1">
+                        <div class="glass-card__body">
+                            <div class="kpi-value" id="kpi-devices">0</div>
+                            <div class="kpi-label">Dispositivos na Rede</div>
+                            <div class="kpi-trend up">▲ 2%</div>
+                        </div>
+                    </div>
+                    <div class="glass-card stagger-2">
+                        <div class="glass-card__body">
+                            <div class="kpi-value" id="kpi-threats">0</div>
+                            <div class="kpi-label">Ameaças Detectadas</div>
+                            <div class="kpi-trend down">▼ 1%</div>
+                        </div>
+                    </div>
+                    <div class="glass-card stagger-3">
+                        <div class="glass-card__body">
+                            <div class="kpi-value" id="kpi-proxies">0</div>
+                            <div class="kpi-label">Proxies Ativos</div>
+                            <div class="kpi-trend">--</div>
+                        </div>
+                    </div>
+                    <div class="glass-card stagger-4">
+                        <div class="glass-card__body">
+                            <div class="kpi-value" id="kpi-satellites">0</div>
+                            <div class="kpi-label">Satélites Rastreados</div>
+                            <div class="kpi-trend up">▲ 1</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-mid">
+                    <div class="glass-card stagger-5">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Distribuição de Risco</span>
+                        </div>
+                        <div class="glass-card__body">
+                            <canvas id="risk-chart" height="200"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-card stagger-5">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Últimas Atividades</span>
+                        </div>
+                        <div class="glass-card__body">
+                            <div id="activity-feed" class="terminal-font">
+                                <div class="feed-item">[21:18:45] Scanner iniciado...</div>
+                                <div class="feed-item">[21:18:50] 12 dispositivos encontrados.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-scanner" class="view">
+                <div class="scanner-layout">
+                    <div class="glass-card radar-panel">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Radar de Descoberta</span>
+                            <button class="btn btn-neon" onclick="startNetworkScan()">INICIAR SCAN</button>
+                        </div>
+                        <div class="glass-card__body radar-container">
+                            <canvas id="radar-canvas"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="glass-card device-list-panel">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Dispositivos Detectados</span>
+                            <div class="table-filters">
+                                <input type="text" placeholder="Filtrar por IP/Nome..." id="device-filter">
+                            </div>
+                        </div>
+                        <div class="glass-card__body">
+                            <table id="devices-table">
+                                <thead>
+                                    <tr>
+                                        <th>IP</th>
+                                        <th>HOSTNAME</th>
+                                        <th>MAC</th>
+                                        <th>VENDOR</th>
+                                        <th>RISCO</th>
+                                        <th>AÇÕES</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devices-body">
+                                    <!-- Devices will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="view-threats" class="view">
+                <div class="map-layout">
+                    <div class="glass-card map-panel">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Mapa Global de Ameaças</span>
+                            <div class="map-controls">
+                                <input type="text" placeholder="IP para localizar..." id="map-search-ip">
+                                <button class="btn btn-neon" onclick="plotIpOnMap()">PLOTAR</button>
+                            </div>
+                        </div>
+                        <div class="glass-card__body" style="padding: 0; position: relative;">
+                            <div id="threat-map" style="height: 600px; width: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="view-satellites" class="view">
+                <div class="sat-layout">
+                    <div class="glass-card globe-panel">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Rastreamento de Satélites 3D</span>
+                        </div>
+                        <div class="glass-card__body" id="globe-container" style="height: 600px; padding: 0;">
+                            <!-- Globe will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="view-terminal" class="view">
+                <div class="terminal-layout">
+                    <div class="terminal-container">
+                        <div class="terminal-header">
+                            <div class="terminal-controls">
+                                <span class="control red"></span>
+                                <span class="control yellow"></span>
+                                <span class="control green"></span>
+                            </div>
+                            <span class="terminal-title">GODEYES-TERMINAL v2.0</span>
+                        </div>
+                        <div class="terminal-body" id="terminal-body">
+                            <!-- Console output here -->
+                        </div>
+                        <div class="terminal-input-row">
+                            <span class="terminal-prompt">root@godeyes:~#</span>
+                            <input type="text" id="terminal-input" autofocus autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="view-vpn" class="view">
+                <div class="vpn-layout">
+                    <div class="glass-card status-panel">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Status da Conexão</span>
+                        </div>
+                        <div class="glass-card__body">
+                            <div class="vpn-status-item">
+                                <span>Proxy do Sistema:</span>
+                                <span id="system-proxy-status" class="status-offline">DESATIVADO</span>
+                            </div>
+                            <div class="vpn-status-item">
+                                <span>IP Atual:</span>
+                                <span id="current-ip-display">Buscando...</span>
+                            </div>
+                            <button class="btn btn-neon" onclick="toggleSystemProxy(false)" style="margin-top: 15px; width: 100%;">DESATIVAR TUDO</button>
+                        </div>
+                    </div>
+
+                    <div class="glass-card proxy-list-panel">
+                        <div class="glass-card__header">
+                            <span class="glass-card__title">Lista de Proxies SOCKS5</span>
+                            <button class="btn btn-neon" onclick="fetchNewProxies()">ATUALIZAR LISTA</button>
+                        </div>
+                        <div class="glass-card__body">
+                            <table id="proxy-table">
+                                <thead>
+                                    <tr>
+                                        <th>PROXY ADDRESS</th>
+                                        <th>LATÊNCIA</th>
+                                        <th>STATUS</th>
+                                        <th>AÇÕES</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="proxy-body">
+                                    <!-- Proxies will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer id="footer">
+            <span>GodEyes v2.0.0</span>
+            <span id="footer-status">Aguardando comandos...</span>
+        </footer>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="/js/core/socket.js"></script>
+    <script src="/js/utils/notifications.js"></script>
+    <script src="/js/modules/radar.js"></script>
+    <script src="/js/modules/network_scanner.js"></script>
+    <script src="/js/modules/map.js"></script>
+    <script src="/js/modules/terminal.js"></script>
+    <script src="/js/modules/globe3d.js"></script>
+    <script src="/js/modules/vpn.js"></script>
+    <script src="/js/core/app.js"></script>
+</body>
+</html>

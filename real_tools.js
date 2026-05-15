@@ -68,7 +68,7 @@ async function isBackendAlive() {
 async function executePenTestReal(cmd, args, consoleEl) {
   const alive = await isBackendAlive();
   if (!alive) {
-    conMsg(consoleEl, '⚠ Backend offline. Execute iniciar_servidor.bat', 'error');
+    conMsg(consoleEl, '⚠ Backend offline. Ative o Modo Real para usar o Terminal.', 'error');
     return;
   }
   const routes = {
@@ -135,7 +135,6 @@ async function executePenTestReal(cmd, args, consoleEl) {
   const cmdKey = cmd.toLowerCase();
   if (!routes[cmdKey]) {
     conMsg(consoleEl, `Comando desconhecido: ${cmd}`, 'error');
-    conMsg(consoleEl, 'Comandos: ping, traceroute, banner, portscan, ssl, headers, dns, whois, arp, brute, vulnscan, smb, osdetect, scan, subdom, dirbust, sqli, xss, waf, cors, wpscan, hash, autopentest, scrape, exif, pwned, slowloris, mac, geomap, revdns, sweep, shodan, censys, zonetransfer, wafbypass, clickjack, ssldec, takeover, sshkeyscan, anonftp, spoofcheck, sqlmap, nmap_a, nikto, gobuster, hydra, msfconsole, pcap, cvedetails, passgen, b64, urldecode, hashgen, hashcrack, jwt, robots, sitemap', 'info');
     return;
   }
 
@@ -166,7 +165,6 @@ async function executePenTestReal(cmd, args, consoleEl) {
 }
 
 async function pollScanToConsole(consoleEl) {
-  let prev = 0;
   return new Promise(resolve => {
     const iv = setInterval(async () => {
       try {
@@ -192,7 +190,19 @@ async function pollScanToConsole(consoleEl) {
 // ─────────────────────────────────────────────
 window.startRealScan = async function() {
   const btn = document.getElementById('scan-btn');
-  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 3 A9 9 0 0 1 21 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="spin"/></svg> Iniciando...';
+  const target = document.getElementById('scan-range').value;
+  const isCloudEnv = window.location.hostname.includes('vercel.app') || 
+                    (window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('192.168.'));
+  
+  // Decide if we use Vercel Serverless API or Local Backend API
+  const useCloudAPI = isCloudEnv && !backendOnline;
+  
+  if (useCloudAPI && (target.includes('/') || target.includes('*'))) {
+    showGlobalNotification('☁️ Cloud Mode só suporta IP único. Use o Modo Real para redes inteiras.', 'high');
+    return;
+  }
+
+  btn.innerHTML = '🛰️ ' + (useCloudAPI ? 'Cloud Scanning...' : 'Real Scanning...');
   btn.disabled = true;
 
   const wrap = document.getElementById('scan-progress-wrap');
@@ -200,101 +210,88 @@ window.startRealScan = async function() {
   const label = document.getElementById('scan-progress-label');
   wrap.style.display = 'flex';
   fill.style.width = '2%';
-  label.textContent = 'Iniciando varredura real...';
+  label.textContent = useCloudAPI ? 'Iniciando varredura via Cloud...' : 'Iniciando varredura via Nmap...';
 
   const list = document.getElementById('device-list');
   list.innerHTML = '';
   if (typeof radarBlips !== 'undefined') radarBlips.length = 0;
   if (typeof setStats === 'function') setStats(0, 0, 0, 0);
 
-  const target = document.getElementById('scan-range').value;
-
   try {
-    const r = await fetch(`${API}/scan/start`, {
+    const scanUrl = useCloudAPI ? '/api/scan.py' : `${API}/scan/start`;
+    const r = await fetch(scanUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: target, type: 'standard' })
     });
     
     if (!r.ok) throw new Error('Falha ao iniciar scan');
+    const startData = await r.json();
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const stRes = await fetch(`${API}/scan/status`);
-        const st = await stRes.json();
-        
-        fill.style.width = st.progress + '%';
-        label.textContent = st.message;
-
-        if (!st.running && st.progress >= 100) {
-          clearInterval(pollInterval);
-          
-          const resRes = await fetch(`${API}/scan/results`);
-          const res = await resRes.json();
-          
-          if (typeof ALL_DEVICES !== 'undefined') {
-            // Update actual devices from backend
-            let newDevices = res.devices.map((d, i) => ({
-              id: i + 1,
-              hostname: d.hostname,
-              ip: d.ip,
-              mac: d.mac || 'Desconhecido',
-              vendor: d.vendor || 'Desconhecido',
-              os: d.os || 'Desconhecido',
-              uptime: d.uptime || '–',
-              risk: d.risk,
-              ports: d.ports || [],
-              lat: typeof mapInstance !== 'undefined' ? -23.550 + (Math.random() - 0.5) * 0.02 : 0,
-              lng: typeof mapInstance !== 'undefined' ? -46.633 + (Math.random() - 0.5) * 0.02 : 0,
-              vulns: d.vulns || []
-            }));
-            
-            // clear ALL_DEVICES and fill with new ones safely
-            ALL_DEVICES.length = 0;
-            ALL_DEVICES.push(...newDevices);
-            
-            list.innerHTML = '';
-            ALL_DEVICES.forEach(d => {
-              if (typeof radarBlips !== 'undefined') {
-                 const angle = Math.random() * Math.PI * 2;
-                 const dist = Math.random() * (130 * 0.8) + 10;
-                 radarBlips.push({ x: Math.cos(angle)*dist, y: Math.sin(angle)*dist, risk: d.risk, fade: 1.0 });
-              }
-              if (typeof renderDeviceCard === 'function') renderDeviceCard(d);
-            });
-            
-            if (typeof updateStats === 'function') updateStats();
-          }
-
-          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Scan Concluído';
-          btn.disabled = false;
-          label.textContent = `✓ ${res.count} dispositivos encontrados (Scaneado via Nmap)`;
-          
-          // Force scanDone true and remount map
-          try { scanDone = true; } catch(e){}
-          if (typeof mapInitialized !== 'undefined' && typeof refreshMapPins === 'function') {
-            try { mapInitialized = false; initMap(); } catch(e){}
-          }
-        } else if (!st.running) {
-            clearInterval(pollInterval);
-            btn.innerHTML = 'Iniciar Scan';
-            btn.disabled = false;
-            label.textContent = 'Scan cancelado ou falhou.';
+    if (useCloudAPI) {
+      // Logic for CLOUD SCAN (Serverless) - One IP only, fast socket check
+      let p = 5;
+      const iv = setInterval(() => {
+        p += 10;
+        if (fill) fill.style.width = p + '%';
+        if (p >= 95) {
+          clearInterval(iv);
+          const devices = [{
+            hostname: target,
+            ip: target,
+            risk: startData.open_ports.length > 2 ? 'high' : 'medium',
+            ports: startData.open_ports,
+            os: 'Detected via Cloud',
+            vendor: 'External Target',
+            vulns: startData.open_ports.includes(23) ? [{t:'Telnet Open', d:'Insecure protocol detected', s:'crit'}] : []
+          }];
+          renderRealDevices(devices);
+          finishScanUI(1);
         }
-      } catch (err) {
-        clearInterval(pollInterval);
-        btn.disabled = false;
-        btn.innerHTML = 'Iniciar Scan';
-        label.textContent = 'Erro ao verificar status';
-      }
-    }, 1500);
+      }, 100);
+    } else {
+      // Logic for LOCAL SCAN (Backend server.py) - Full Nmap support
+      const pollInterval = setInterval(async () => {
+        try {
+          const stRes = await fetch(`${API}/scan/status`);
+          const st = await stRes.json();
+          
+          fill.style.width = st.progress + '%';
+          label.textContent = st.message;
+
+          if (!st.running && st.progress >= 100) {
+            clearInterval(pollInterval);
+            const resRes = await fetch(`${API}/scan/results`);
+            const res = await resRes.json();
+            renderRealDevices(res.devices);
+            finishScanUI(res.count);
+          } else if (!st.running) {
+              clearInterval(pollInterval);
+              finishScanUI();
+          }
+        } catch (err) {
+          clearInterval(pollInterval);
+          finishScanUI();
+        }
+      }, 1500);
+    }
 
   } catch (e) {
-    btn.disabled = false;
-    btn.innerHTML = 'Iniciar Scan';
-    label.textContent = `Erro: ${e.message}`;
+    showGlobalNotification(`Erro: ${e.message}`, 'high');
+    finishScanUI();
   }
 };
+
+function finishScanUI(count) {
+  const btn = document.getElementById('scan-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 3 A9 9 0 0 1 21 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="spin"/></svg> Iniciar Scan';
+  }
+  document.getElementById('scan-progress-wrap').style.display = 'none';
+  if (count !== undefined && typeof showGlobalNotification === 'function')
+    showGlobalNotification(`✅ Scan concluído: ${count} dispositivo(s) encontrado(s)`, 'ok');
+}
 
 // ─────────────────────────────────────────────
 // PAINEL: TERMINAL INTERATIVO
@@ -308,22 +305,8 @@ function initTerminal() {
   conMsg(term, '╔══════════════════════════════════════╗', 'success');
   conMsg(term, '║   GodEyes Terminal – Pentest Real    ║', 'success');
   conMsg(term, '╚══════════════════════════════════════╝', 'success');
-  conMsg(term, '  mac <mac>             |  geomap <ip>', 'info');
-  conMsg(term, '  revdns <ip>           |  sweep <range>', 'info');
-  conMsg(term, '  shodan <ip>           |  censys <ip>', 'info');
-  conMsg(term, '  zonetransfer <domain> |  wafbypass <url>', 'info');
-  conMsg(term, '  clickjack <url>       |  ssldec <host>', 'info');
-  conMsg(term, '  takeover <domain>     |  sshkeyscan <host>', 'info');
-  conMsg(term, '  anonftp <host>        |  spoofcheck <domain>', 'info');
-  conMsg(term, '  sqlmap <url>          |  nmap_a <host>', 'info');
-  conMsg(term, '  nikto <url>           |  gobuster <url>', 'info');
-  conMsg(term, '  hydra <host>          |  msfconsole <exploit> <target>', 'info');
-  conMsg(term, '  pcap <file>           |  cvedetails <cve>', 'info');
-  conMsg(term, '  passgen [len]         |  b64 <enc|dec> <text>', 'info');
-  conMsg(term, '  urldecode <text>      |  hashgen <md5|sha1> <text>', 'info');
-  conMsg(term, '  hashcrack <hash>      |  jwt <token>', 'info');
-  conMsg(term, '  robots <url>          |  sitemap <url>', 'info');
-  conMsg(term, '  clear', 'info');
+  conMsg(term, '  Exemplos: ping 8.8.8.8 | scan 192.168.1.1', 'info');
+  conMsg(term, '  clear para limpar o terminal.', 'info');
   conMsg(term, '─'.repeat(40), 'info');
 
   const run = async () => {
@@ -340,25 +323,10 @@ function initTerminal() {
 
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
   if (btn) btn.addEventListener('click', run);
-
-  // History
-  let history = [], histIdx = -1;
-  inp.addEventListener('keydown', e => {
-    if (e.key === 'ArrowUp') {
-      histIdx = Math.min(histIdx + 1, history.length - 1);
-      inp.value = history[histIdx] || '';
-    } else if (e.key === 'ArrowDown') {
-      histIdx = Math.max(histIdx - 1, -1);
-      inp.value = histIdx >= 0 ? history[histIdx] : '';
-    } else if (e.key === 'Enter' && inp.value.trim()) {
-      history.unshift(inp.value.trim());
-      histIdx = -1;
-    }
-  });
 }
 
 // ─────────────────────────────────────────────
-// DEVICE INSPECTOR – ferramentas reais
+// DEVICE INSPECTOR TOOLS
 // ─────────────────────────────────────────────
 async function realPingDevice(ip) {
   const out = document.getElementById('inspector-ping-out');
@@ -416,10 +384,6 @@ async function realVulnScan(ip) {
   } catch (e) { conMsg(out, `Erro: ${e.message}`, 'error'); }
 }
 
-// ─────────────────────────────────────────────
-// DEVICE INSPECTOR PATCH
-// Adiciona abas reais ao inspector quando backend online
-// ─────────────────────────────────────────────
 function patchInspector(device) {
   const inspector = document.getElementById('device-inspector');
   if (!inspector) return;
@@ -450,7 +414,6 @@ function patchInspector(device) {
     tabsDiv.appendChild(outEl);
   });
 
-  // Section header
   const hdg = document.createElement('h3');
   hdg.style.cssText = 'margin:16px 0 6px;font-size:13px;color:var(--cyan)';
   hdg.textContent = '⚡ Ferramentas Reais';
@@ -458,20 +421,14 @@ function patchInspector(device) {
   inspector.querySelector('.inspector-body')?.appendChild(tabsDiv);
 }
 
-// Override openInspector
 const _origOpenInspector = window.openInspector;
 window.openInspector = function(device) {
   if (_origOpenInspector) _origOpenInspector(device);
   setTimeout(() => patchInspector(device), 100);
 };
 
-// ─────────────────────────────────────────────
-// TERMINAL PANEL – inject into index.html
-// ─────────────────────────────────────────────
 function injectTerminalPanel() {
   if (document.getElementById('panel-terminal')) return;
-
-  // Sidebar button
   const nav = document.querySelector('aside nav');
   if (nav) {
     const btn = document.createElement('button');
@@ -487,10 +444,8 @@ function injectTerminalPanel() {
     nav.appendChild(btn);
   }
 
-  // Panel HTML
   const main = document.querySelector('main');
   if (!main) return;
-
   const section = document.createElement('section');
   section.id = 'panel-terminal';
   section.className = 'panel';
@@ -498,7 +453,7 @@ function injectTerminalPanel() {
     <div class="panel-header">
       <div>
         <h1>Terminal Pentest</h1>
-        <p class="panel-sub">Ferramentas reais de segurança — requer backend (iniciar_servidor.bat)</p>
+        <p class="panel-sub">Ferramentas reais de segurança — requer backend bridge</p>
       </div>
       <div class="header-actions">
         <div id="term-backend-status" style="padding:6px 14px;border-radius:8px;border:1px solid var(--glass-b);font-size:12px;font-family:var(--mono)">
@@ -507,141 +462,21 @@ function injectTerminalPanel() {
         <button class="btn-secondary" onclick="document.getElementById('real-terminal').innerHTML=''">🗑 Limpar</button>
       </div>
     </div>
-
-    <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;height:calc(100vh - 200px)">
-      <!-- Terminal -->
+    <div style="display:grid;grid-template-columns:1fr;gap:16px;height:calc(100vh - 200px)">
       <div class="glass-card" style="display:flex;flex-direction:column;overflow:hidden">
         <div id="real-terminal" style="flex:1;overflow-y:auto;padding:12px;background:#050810;border-radius:var(--radius) var(--radius) 0 0;font-family:var(--mono);font-size:12px;"></div>
         <div style="display:flex;gap:8px;padding:10px;border-top:1px solid var(--glass-b);background:#08111a;">
           <span style="color:var(--neon);font-family:var(--mono);font-size:13px;align-self:center">$</span>
-          <input id="term-input" type="text" class="input-field" placeholder="ping 192.168.1.1  |  vulnscan 192.168.1.100  |  brute 10.0.0.1 22 ssh" style="flex:1;font-family:var(--mono);background:transparent;border:none;outline:none;font-size:13px"/>
+          <input id="term-input" type="text" class="input-field" placeholder="ping 1.1.1.1  |  banner 192.168.1.1" style="flex:1;font-family:var(--mono);background:transparent;border:none;outline:none;font-size:13px"/>
           <button id="term-send" class="btn-primary" style="min-width:80px">▶ Executar</button>
         </div>
       </div>
-
-      <!-- Quick Actions sidebar -->
-      <div style="display:flex;flex-direction:column;gap:10px;overflow-y:auto;">
-        <div class="glass-card">
-          <h3 style="margin-bottom:12px">⚡ Ação Rápida</h3>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <label style="font-size:11px;color:var(--muted)">Alvo:</label>
-            <input id="quick-target" class="input-field" placeholder="192.168.1.1 ou dominio.com" style="font-size:12px"/>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
-            ${[
-              ['📡 Ping',       'ping'],
-              ['🔀 Traceroute', 'traceroute'],
-              ['🏷 Banner',     'banner'],
-              ['🔍 Port Scan',  'portscan'],
-              ['🔒 SSL/TLS',    'ssl'],
-              ['🌐 Headers HTTP','headers'],
-              ['🌍 DNS',        'dns'],
-              ['📋 WHOIS',      'whois'],
-              ['📶 ARP Scan',   'arp'],
-              ['🔑 Brute SSH',  'brute'],
-              ['🔴 Vuln Scan',  'vulnscan'],
-              ['💾 SMB Scan',   'smb'],
-              ['🖥 OS Detect',  'osdetect'],
-              ['🌐 Subdomínios','subdom'],
-              ['📂 DirBuster',  'dirbust'],
-              ['💉 SQLi Test',  'sqli'],
-              ['💥 XSS Test',   'xss'],
-              ['🛡️ WAF Detect', 'waf'],
-              ['🔓 CORS Test',  'cors'],
-              ['🎯 WPScan',     'wpscan'],
-              ['⚡ AutoPentest', 'autopentest'],
-              ['🕵️ Scraper',     'scrape'],
-              ['📸 Modulo EXIF', 'exif'],
-              ['💀 Pwned Check', 'pwned'],
-              ['💥 DoS Loris',   'slowloris'],
-              ['📌 MAC Lookup',  'mac'],
-              ['🗺️ Geo Map',     'geomap'],
-              ['🔄 Reverse DNS', 'revdns'],
-              ['📡 Ping Sweep',  'sweep'],
-              ['👁️ Shodan',      'shodan'],
-              ['👁️ Censys',      'censys'],
-              ['📑 Zone Trans.', 'zonetransfer'],
-              ['🛡️ WAF Bypass',  'wafbypass'],
-              ['🖱️ Clickjack',   'clickjack'],
-              ['🔑 SSL Decode',  'ssldec'],
-              ['🎭 Sub-Takeovr', 'takeover'],
-              ['🗝️ SSH Keys',    'sshkeyscan'],
-              ['📂 Anon FTP',    'anonftp'],
-              ['📧 Spoof Check', 'spoofcheck'],
-              ['💉 SQLMap',      'sqlmap'],
-              ['🔥 Nmap -A',     'nmap_a'],
-              ['🔬 Nikto',       'nikto'],
-              ['📂 Gobuster',    'gobuster'],
-              ['🐍 Hydra',       'hydra'],
-              ['☠️ Metasploit',  'msfconsole'],
-              ['🗜️ PCAP Anal.',  'pcap'],
-              ['📚 CVE Info',    'cvedetails'],
-              ['🔐 Pass Gen',    'passgen'],
-              ['🔤 Base64',      'b64'],
-              ['🔗 URL Decode',  'urldecode'],
-              ['#️⃣ Hash Gen',    'hashgen'],
-              ['💥 Hash Crack',  'hashcrack'],
-              ['🎫 JWT Decode',  'jwt'],
-              ['🤖 Robots.txt',  'robots'],
-              ['🗺️ Sitemap.xml', 'sitemap'],
-            ].map(([label, cmd]) => `<button class="btn-secondary" style="text-align:left;font-size:12px;padding:6px;min-height:28px;" onclick="quickRun('${cmd}')">${label}</button>`).join('')}
-          </div>
-        </div>
-
-        <div class="glass-card">
-          <h3 style="margin-bottom:8px">📖 Referência</h3>
-          <div style="font-size:11px;color:var(--muted);font-family:var(--mono);line-height:1.8">
-            mac HOST<br>
-            geomap HOST<br>
-            revdns HOST<br>
-            sweep RANGE<br>
-            shodan HOST<br>
-            censys HOST<br>
-            zonetransfer DOMAIN<br>
-            wafbypass URL<br>
-            clickjack URL<br>
-            ssldec HOST<br>
-            takeover DOMAIN<br>
-            sshkeyscan HOST<br>
-            anonftp HOST<br>
-            spoofcheck DOMAIN<br>
-            sqlmap URL<br>
-            nmap_a HOST<br>
-            nikto URL<br>
-            gobuster URL<br>
-            hydra HOST [SVC]<br>
-            msfconsole EXP TGT<br>
-            pcap FILE<br>
-            cvedetails CVE<br>
-            passgen LEN<br>
-            b64 enc/dec TEXT<br>
-            urldecode TEXT<br>
-            hashgen ALGO TEXT<br>
-            hashcrack HASH<br>
-            jwt TOKEN<br>
-            robots URL<br>
-            sitemap URL<br>
-            clear
-          </div>
-        </div>
-      </div>
     </div>`;
-
   main.appendChild(section);
   initTerminal();
-  pollTerminalBackendStatus();
 }
 
-function quickRun(cmd) {
-  const target = document.getElementById('quick-target')?.value?.trim();
-  if (!target) { alert('Digite o IP/host no campo "Alvo" primeiro.'); return; }
-  const inp = document.getElementById('term-input');
-  if (inp) { inp.value = `${cmd} ${target}`; }
-  const term = document.getElementById('real-terminal');
-  executePenTestReal(cmd, [target], term);
-}
-
-async function pollTerminalBackendStatus() {
+function pollTerminalBackendStatus() {
   const statusEl = document.getElementById('term-backend-status');
   const check = async () => {
     const alive = await isBackendAlive();
@@ -655,30 +490,7 @@ async function pollTerminalBackendStatus() {
   setInterval(check, 5000);
 }
 
-// ─────────────────────────────────────────────
-// INIT
-// ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   injectTerminalPanel();
-
-  // Immediately check backend status at boot (don't wait for terminal panel)
-  (async function bootCheck() {
-    try {
-      const alive = await isBackendAlive();
-      window.backendOnline = alive;
-      console.log('[GodEyes] Backend status at boot:', alive ? 'ONLINE' : 'OFFLINE');
-    } catch(e) {
-      window.backendOnline = false;
-    }
-  })();
-
-
-  // Patch showPanel to init terminal when needed
-
-  // Patch showPanel to init terminal when needed
-  const prevShow = window.showPanel;
-  window.showPanel = function(name) {
-    if (prevShow) prevShow(name);
-    if (name === 'terminal') setTimeout(initTerminal, 50);
-  };
+  pollTerminalBackendStatus();
 });

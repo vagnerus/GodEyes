@@ -109,8 +109,52 @@ job_results  = {}   # generic async job store
 job_lock     = threading.Lock()
 target_history = {} # Armazena o histórico completo de ataques/scans por alvo
 
-# Global Proxy State
-current_proxy = None # e.g., "http://103.152.112.157:80" or "socks5://45.141.152.18:1080"
+
+# Global Proxy & Tunnel State
+current_proxy = None 
+tunnel_url = None
+
+def start_auto_tunnel():
+    """Inicia o túnel localhost.run em segundo plano e captura a URL."""
+    global tunnel_url
+    print("\n[🚀] Iniciando Túnel Automático... Aguarde.")
+    
+    cmd = ["ssh", "-o", "StrictHostKeyChecking=no", "-R", "80:localhost:5000", "nokey@localhost.run"]
+    try:
+        # Usamos universal_newlines=True e bufsize=1 para ler linha por linha
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                                text=True, bufsize=1)
+        
+        for line in proc.stdout:
+            # Procura pelo padrão https://....lhr.life ou .lhr.run
+            match = re.search(r'https://[a-zA-Z0-9.-]+\.lhr\.(?:life|run)', line)
+            if match:
+                tunnel_url = match.group(0)
+                print(f"\n[✅] TÚNEL ATIVO: {tunnel_url}")
+                print("[!] O Vercel agora pode se conectar automaticamente.\n")
+                
+
+                # Opcional: Salvar em um arquivo local para o frontend ler se estiver em localhost
+                with open("tunnel_url.txt", "w") as f:
+                    f.write(tunnel_url)
+
+                # ANÚNCIO PARA O VERCEL (Auto-Discovery)
+                try:
+                    import requests
+                    # Canal único baseado no seu usuário para evitar conflitos
+                    topic = "godeyes_vagnerus_v2" 
+                    requests.post(f"https://ntfy.sh/{topic}", 
+                                  data=tunnel_url.encode('utf-8'),
+                                  headers={"Title": "GodEyes Tunnel Active", "Priority": "high"})
+                    print(f"[📡] Link anunciado com sucesso no canal: {topic}")
+                except Exception as ex:
+                    print(f"[⚠️] Falha ao anunciar link: {ex}")
+                break
+    except Exception as e:
+        print(f"[❌] Erro ao iniciar túnel: {e}")
+
+# Inicia o túnel em uma thread separada para não travar o Flask
+threading.Thread(target=start_auto_tunnel, daemon=True).start()
 
 def get_requests_proxies():
     if current_proxy:

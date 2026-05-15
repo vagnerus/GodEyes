@@ -2,6 +2,77 @@
    GodEyes – Dark Cyberpunk Security Dashboard
    ═══════════════════════════════════════════ */
 
+/* ── INSTALL TOOLBAR ── */
+.install-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: #0b1121;
+  border-bottom: 3px solid var(--neon);
+  z-index: 999999; /* Highest possible */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+  animation: slideDown 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+@keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+
+.install-toolbar.active { display: flex; }
+
+.it-content {
+  max-width: 1200px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  padding: 0 30px;
+}
+.it-icon { font-size: 28px; filter: drop-shadow(0 0 10px var(--neon)); }
+.it-text { flex: 1; display: flex; flex-direction: column; }
+.it-text strong { color: var(--neon); font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
+.it-text span { color: #e2e8f0; font-size: 12px; opacity: 0.8; }
+
+.it-actions { display: flex; gap: 12px; align-items: center; }
+.it-btn-main {
+  background: var(--neon);
+  color: #000;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 0 15px rgba(0,245,160,0.4);
+}
+.it-btn-main:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(0,245,160,0.6); }
+.it-btn-sub {
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.it-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 22px;
+  padding: 10px;
+  margin-left: 10px;
+}
+
+/* Adjust layout when toolbar is active */
+body.has-toolbar #sidebar { top: 70px; height: calc(100vh - 70px); }
+body.has-toolbar #main { margin-top: 70px; }
+body.has-toolbar .real-mode-ribbon { top: 80px; }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -20,7 +91,7 @@
   --muted:    #64748b;
   --border:   rgba(0,245,160,0.12);
   --radius:   14px;
-  --sidebar:  72px;
+  --sidebar:  95px;
   --font:     'Inter', sans-serif;
   --mono:     'JetBrains Mono', monospace;
 }
@@ -49,10 +120,10 @@ html, body {
   width: var(--sidebar);
   background: var(--bg2);
   border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; align-items: center;
+  display: flex; flex-direction: column; align-items: stretch;
   padding: 16px 0;
   z-index: 100;
-  gap: 4px;
+  gap: 6px;
 }
 
 .logo {
@@ -76,6 +147,8 @@ html, body {
   background: transparent; border: 1px solid transparent;
   color: var(--muted); cursor: pointer; font-size: 9px;
   font-family: var(--font); transition: all .25s;
+  width: 100%; position: relative; z-index: 105;
+  pointer-events: auto;
 }
 .nav-btn svg { width: 20px; height: 20px; }
 .nav-btn:hover { color: var(--text); background: var(--glass); border-color: var(--border); }
@@ -86,7 +159,8 @@ html, body {
 }
 
 .sidebar-footer {
-  display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--muted);
+  display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 9px; color: var(--muted);
+  margin-top: auto; padding-bottom: 10px;
 }
 .status-dot {
   width: 7px; height: 7px; border-radius: 50%;
@@ -956,43 +1030,74 @@ kbd { background: rgba(255,255,255,.07); border: 1px solid var(--glass-b); borde
 
 /* ── BACKEND / TUNNEL INDICATOR ── */
 .backend-status-card {
-  margin: 12px;
-  padding: 12px;
-  background: rgba(0, 245, 160, 0.03);
-  border: 1px solid var(--glass-b);
-  border-radius: 12px;
+  margin: 10px 6px;
+  padding: 8px;
+  background: rgba(0, 245, 160, 0.05);
+  border: 1px solid rgba(0, 245, 160, 0.2);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   transition: all 0.3s ease;
-}
-
-.backend-status-card:hover {
-  background: rgba(0, 245, 160, 0.06);
-  border-color: rgba(0, 245, 160, 0.3);
+  backdrop-filter: blur(8px);
+  width: auto;
 }
 
 .status-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 2px;
 }
 
 .status-title {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   color: var(--muted);
 }
 
 .status-badge {
   display: flex;
   align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.tunnel-link-box {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: var(--cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: center;
+}
+
+.tunnel-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-main);
+}
+
+.btn-mini {
+  padding: 5px 2px;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 4px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  text-align: center;
+  transition: all 0.2s;
 }
 
 .status-dot-pulse {

@@ -9,13 +9,44 @@ window.realModeActive = true;
 window.backendOnline = false;
 
 // ═══ PANEL NAVIGATION ═══
-function showPanel(name) {
+window.showPanel = function(name) {
+  console.log('[Navigation] Switching to:', name);
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('panel-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
-  if (name === 'map') setTimeout(initMap, 100);
-}
+  
+  const target = document.getElementById('panel-' + name);
+  if (target) target.classList.add('active');
+  
+  const btn = document.getElementById('nav-' + name);
+  if (btn) btn.classList.add('active');
+
+  // Unified Triggers
+  if (name === 'inventory')   if (typeof initInventory === 'function') initInventory();
+  if (name === 'ids')         if (typeof initIDS === 'function') initIDS();
+  if (name === 'credentials') if (typeof renderCredentials === 'function') renderCredentials();
+  if (name === 'geoip')       if (typeof initGeoMap === 'function') setTimeout(initGeoMap, 150);
+  if (name === 'terminal')    if (typeof initTerminal === 'function') setTimeout(initTerminal, 50);
+  if (name === 'install')     nextWizStep(1);
+};
+
+// ═══ INSTALLER WIZARD LOGIC ═══
+window.nextWizStep = function(step) {
+    document.querySelectorAll('.wiz-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.wiz-step').forEach((s, idx) => {
+        s.classList.toggle('active', (idx + 1) === step);
+        s.classList.toggle('completed', (idx + 1) < step);
+    });
+    const target = document.getElementById(`wiz-content-${step}`);
+    if (target) target.classList.add('active');
+};
+
+window.copyWizCmd = function() {
+    const cmd = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://godeyes.vagner.life/install.ps1'))";
+    navigator.clipboard.writeText(cmd).then(() => {
+        if(typeof showGlobalNotification === 'function') 
+            showGlobalNotification('✅ Comando copiado! Cole no PowerShell (Admin).', 'ok');
+    });
+};
 
 // ═══ PARTICLE BACKGROUND ═══
 (function initParticles() {
@@ -187,15 +218,9 @@ async function startScan() {
   if (scanInterval) return;
 
   // Real Mode Hook – ALWAYS try backend first
-  if (typeof isBackendAlive === 'function') {
-    try {
-      const alive = await isBackendAlive();
-      window.backendOnline = alive;
-      if (alive && typeof startRealScan === 'function') {
-        startRealScan();
-        return;
-      }
-    } catch(e) { /* backend offline, fallback below */ }
+  if (backendOnline) {
+    startRealScan();
+    return;
   }
 
   const btn = document.getElementById('scan-btn');
@@ -969,15 +994,19 @@ async function checkIP() {
 
   try {
     el.textContent = 'Verificando...';
-    const r = await fetch(API + '/ip/check');
+    // Fallback para API serveless na Vercel se o backend local estiver offline
+    const apiBase = backendOnline ? (localStorage.getItem('godeyes_backend') || '') : '';
+    const r = await fetch(apiBase + '/api/ip.py', { cache: 'no-store' });
     const data = await r.json();
     if (data.ip) {
       el.textContent = data.ip;
-      document.getElementById('current-ip-loc').textContent = data.loc || 'Desconhecido';
-      const isProxied = data.proxy === true;
-      document.getElementById('anon-level').textContent = isProxied ? 'Alto (Proxy Real)' : 'Baixo (Transparente)';
-      document.getElementById('ip-meter-bar').style.width = isProxied ? '85%' : '15%';
-      appendConsole(`[IP Check] ${data.ip} · ${data.loc} · ${data.proxy_note || ''}`, 'success');
+      const locEl = document.getElementById('current-ip-loc');
+      if (locEl) locEl.textContent = data.loc || 'Desconhecido';
+      const anonEl = document.getElementById('anon-level');
+      const barEl = document.getElementById('ip-meter-bar');
+      if (anonEl) anonEl.textContent = backendOnline ? 'Alto (Proxy Real)' : 'Cloud Mode';
+      if (barEl) barEl.style.width = backendOnline ? '85%' : '40%';
+      appendConsole(`[IP Check] ${data.ip} · ${data.loc}`, 'success');
     } else {
       el.textContent = 'Erro';
       appendConsole(`[IP Check] ${data.error}`, 'error');
@@ -1015,6 +1044,34 @@ window.setBackend = function(url) {
     }
 };
 
+async function autoDiscoverBackend() {
+    const topic = "godeyes_vagnerus_v2";
+    console.log("[📡] Tentando auto-descoberta do túnel...");
+    try {
+        const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1&last=1`);
+        const messages = await res.json();
+        if (messages && messages.length > 0) {
+            const latest = messages[messages.length - 1];
+            const url = latest.message;
+            if (url && url.startsWith('http')) {
+                console.log("[✅] Túnel descoberto automaticamente:", url);
+                if (localStorage.getItem('godeyes_backend') !== url) {
+                    localStorage.setItem('godeyes_backend', url);
+                    if (typeof showGlobalNotification === 'function') {
+                        showGlobalNotification('📡 Túnel localizado automaticamente!', 'ok');
+                    }
+                    // Refresh para aplicar as novas URLs base
+                    setTimeout(() => location.reload(), 1500);
+                }
+                return url;
+            }
+        }
+    } catch (e) {
+        console.warn("[⚠️] Auto-descoberta falhou:", e);
+    }
+    return null;
+}
+
 window.setBackendPrompt = function() {
     let current = localStorage.getItem('godeyes_backend') || 'localhost:5000';
     let url = prompt("🔗 CONFIGURAR BACKEND / TÚNEL:\n\nCole aqui o link do Túnel (ex: https://xxxx.lhr.life) ou deixe vazio para usar localhost.", current);
@@ -1035,45 +1092,127 @@ let realModeActive = true; // Default to TRUE - The real tool gets priority!
 let scanPollInterval = null;
 
 // ── Check if backend server is running ──
-async function checkBackendStatus() {
+// ── Check if backend server is running ──
+window.checkBackendStatus = async function() {
   const urlEl = document.getElementById('tunnel-url');
   const dot = document.getElementById('backend-dot');
   const label = document.getElementById('backend-label');
-  const currentUrl = localStorage.getItem('godeyes_backend') || window.location.origin;
+  
+  // Wizard elements
+  const wizDot = document.getElementById('wiz-conn-dot');
+  const wizLabel = document.getElementById('wiz-conn-label');
+  const wizFinishBtn = document.getElementById('wiz-finish-btn');
+  
+  // Toolbar elements
+  const toolbar = document.getElementById('install-toolbar');
 
-  if (urlEl) urlEl.textContent = currentUrl.replace(/^https?:\/\//, '');
+  // Transition detection
+  const wasOffline = !backendOnline;
 
+  // 1. Tenta primeiro Local Backend (Ponte real)
+  let foundLocal = false;
+  const localBackend = localStorage.getItem('godeyes_backend') || 'http://localhost:5000';
   try {
-    const res = await fetch((localStorage.getItem('godeyes_backend') || window.location.origin) + '/api/status', { signal: AbortSignal.timeout(2500) });
+    const res = await fetch(localBackend + '/api/status', { signal: AbortSignal.timeout(1200), cache: 'no-store' });
     const data = await res.json();
-    backendOnline = data.online === true;
-    
-    // AUTO-ATIVAR MODO REAL
-    if (backendOnline && !realModeActive) {
-      realModeActive = true;
-      if (typeof showGlobalNotification === 'function') {
-        showGlobalNotification('🟢 Backend detectado! Modo Real ativado.', 'ok');
-      }
+    if (data.online) {
+      backendOnline = true;
+      window.isCloudMode = false;
+      if (urlEl) urlEl.textContent = localBackend.replace(/^https?:\/\//, '');
+      foundLocal = true;
     }
-  } catch (_) {
-    backendOnline = false;
-    // Não desativamos o realModeActive imediatamente para evitar flapping, 
-    // mas o UI mostrará o erro.
+  } catch (_) { }
+
+  // 2. Fallback para Vercel Cloud se Local falhar
+  if (!foundLocal) {
+    try {
+      const cloudRes = await fetch('/api/status', { cache: 'no-store', signal: AbortSignal.timeout(1200) });
+      if (cloudRes.ok) {
+          const cloudData = await cloudRes.json();
+          if (cloudData.online) {
+              backendOnline = true;
+              window.isCloudMode = true;
+              if (urlEl) urlEl.textContent = 'Cloud Active';
+          } else {
+              backendOnline = false;
+          }
+      } else {
+          backendOnline = false;
+      }
+    } catch (e) {
+      backendOnline = false;
+    }
   }
+  
   updateBackendIndicator();
+
+  // Wizard Connection Step Update
+  if (wizDot) {
+      wizDot.className = 'status-dot-pulse' + (backendOnline ? ' online' : '');
+      if (wizLabel) {
+          wizLabel.textContent = backendOnline ? (window.isCloudMode ? 'MODO CLOUD ATIVO' : 'BACKEND LOCAL CONECTADO ✓') : 'BACKEND OFFLINE';
+          wizLabel.style.color = backendOnline ? 'var(--neon)' : 'var(--red)';
+      }
+      if (wizFinishBtn && backendOnline) {
+          wizFinishBtn.disabled = false;
+          wizFinishBtn.style.opacity = '1';
+          wizFinishBtn.textContent = 'Finalizar Setup e Iniciar 🚀';
+      }
+  }
+
+  // Toolbar Visibility Logic - REMOVED AUTO-SHOW per user request
+  /*
+  if (!backendOnline && !localStorage.getItem('godeyes_install_closed')) {
+      if (toolbar) {
+          toolbar.classList.add('active');
+          document.body.classList.add('has-toolbar');
+      }
+  } else if (backendOnline) {
+      if (toolbar) {
+          toolbar.classList.remove('active');
+          document.body.classList.remove('has-toolbar');
+      }
+      // Only reload if we just transitioned to ONLINE and haven't reloaded this session
+      if (wasOffline && !sessionStorage.getItem('godeyes_reloaded')) {
+          handleAutoReload();
+      }
+  }
+  */
+};
+
+function handleAutoReload() {
+    sessionStorage.setItem('godeyes_reloaded', 'true');
+    if (typeof showGlobalNotification === 'function') {
+        showGlobalNotification('🚀 Backend detectado! Ativando Modo Real...', 'ok');
+    }
+    setTimeout(() => location.reload(), 1500);
 }
+
+window.closeInstallToolbar = function() {
+    const toolbar = document.getElementById('install-toolbar');
+    if (toolbar) {
+        toolbar.classList.remove('active');
+        document.body.classList.remove('has-toolbar');
+    }
+    localStorage.setItem('godeyes_install_closed', 'true');
+};
 
 function updateBackendIndicator() {
   const dot = document.getElementById('backend-dot');
   const label = document.getElementById('backend-label');
   const btn = document.getElementById('real-mode-btn');
+  const sidebarAlert = document.getElementById('sidebar-plugin-alert');
 
   if (dot) dot.className = 'status-dot-pulse' + (backendOnline ? ' online' : '');
   if (label) {
-    label.textContent = backendOnline ? 'ONLINE' : 'OFFLINE';
+    label.textContent = backendOnline ? (window.isCloudMode ? 'CLOUD' : 'PC ON') : 'OFF';
     label.style.color = backendOnline ? 'var(--neon)' : 'var(--red)';
   }
   
+  if (sidebarAlert) {
+      sidebarAlert.style.display = backendOnline ? 'none' : 'block';
+  }
+
   // Toggle ribbon and body class
   document.body.classList.toggle('real-mode-active', realModeActive && backendOnline);
 
@@ -1084,14 +1223,15 @@ function updateBackendIndicator() {
   }
 }
 
-
-// Backend polling is handled in DOMContentLoaded
-
 // ── Toggle Real Mode ──
 function toggleRealMode() {
   if (!backendOnline) {
-    if (typeof showGlobalNotification === 'function') {
-      showGlobalNotification('⚠ Backend offline. Execute iniciar_servidor.bat primeiro.', 'high');
+    const setupModal = document.getElementById('setup-modal');
+    if (setupModal) {
+      if (typeof showGlobalNotification === 'function') {
+        showGlobalNotification('🔐 Modo Real requer o Plugin. Abrindo assistente...', 'warn');
+      }
+      setupModal.classList.add('open');
     }
     return;
   }
@@ -1099,81 +1239,156 @@ function toggleRealMode() {
   const btn = document.getElementById('real-mode-btn');
   if (btn) btn.textContent = realModeActive ? '🟢 REAL' : '🔵 SIM';
   updateBackendIndicator();
-  if (typeof showGlobalNotification === 'function') {
-    showGlobalNotification(
-      realModeActive ? '🟢 Modo Real ativo – próximo scan usará nmap real' : '🔵 Modo Simulação ativo',
-      realModeActive ? 'ok' : 'ok'
-    );
+}
+
+async function toggleVPN() {
+  if (!backendOnline) {
+    const setupModal = document.getElementById('setup-modal');
+    if (setupModal) {
+      if (typeof showGlobalNotification === 'function') {
+        showGlobalNotification('🔐 VPN Real requer o Plugin. Abrindo assistente...', 'warn');
+      }
+      setupModal.classList.add('open');
+    }
+    vpnOn = !vpnOn;
+    const toggle = document.getElementById('vpn-toggle');
+    const label = document.getElementById('vpn-toggle-label');
+    const badge = document.getElementById('vpn-badge');
+    if (toggle) toggle.classList.toggle('on', vpnOn);
+    if (label) label.textContent = vpnOn ? 'ON' : 'OFF';
+    if (badge) {
+        badge.textContent = vpnOn ? 'SIMULADO' : 'DESCONECTADO';
+        badge.className = 'vpn-status-badge' + (vpnOn ? ' connected' : '');
+    }
+    return;
+  }
+  vpnOn = !vpnOn;
+  const toggle = document.getElementById('vpn-toggle');
+  const label = document.getElementById('vpn-toggle-label');
+  const badge = document.getElementById('vpn-badge');
+  if (toggle) toggle.classList.toggle('on', vpnOn);
+  if (label) label.textContent = vpnOn ? 'ON' : 'OFF';
+
+  if (vpnOn) {
+    if (badge) {
+        badge.textContent = 'CONECTANDO...';
+        badge.className = 'vpn-status-badge';
+    }
+    logVPN('Iniciando túnel VPN...', 'vpn-log-line');
+    logVPN('Buscando proxies reais verificados...', 'vpn-log-line');
+
+    try {
+      const apiBase = localStorage.getItem('godeyes_backend') || '';
+      const fetchRes = await fetch(apiBase + '/api/proxy/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocol: 'socks5', max_test: 30 })
+      });
+      const fetchData = await fetchRes.json();
+      
+      if (!fetchData.proxies || fetchData.proxies.length === 0) {
+        logVPN('SOCKS5 vazio, tentando HTTP...', 'vpn-log-line');
+        const fetchRes2 = await fetch(apiBase + '/api/proxy/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ protocol: 'http', max_test: 30 })
+        });
+        const fetchData2 = await fetchRes2.json();
+        if (!fetchData2.proxies || fetchData2.proxies.length === 0) throw new Error('Nenhum proxy encontrado');
+        fetchData.proxies = fetchData2.proxies;
+      }
+
+      const chosen = fetchData.proxies[0];
+      logVPN(`Conectando via ${chosen.proto}://${chosen.addr}...`, 'vpn-log-line');
+
+      const connRes = await fetch(apiBase + '/api/proxy/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addr: chosen.addr, proto: chosen.proto })
+      });
+      const connData = await connRes.json();
+
+      if (connData.connected) {
+        logVPN(`IP REAL ROTEADO: ${connData.ip}`, 'vpn-log-line ok');
+        if (badge) {
+            badge.textContent = 'CONECTADO';
+            badge.className = 'vpn-status-badge connected';
+        }
+        document.getElementById('vpn-ext-ip').textContent = connData.ip;
+        document.getElementById('vpn-proto').textContent = chosen.proto.toUpperCase();
+      } else {
+        throw new Error(connData.error || 'Falha na conexão');
+      }
+    } catch(e) {
+      logVPN(`Erro: ${e.message}`, 'vpn-log-line err');
+      if (badge) {
+          badge.textContent = 'ERRO';
+          badge.className = 'vpn-status-badge';
+      }
+      vpnOn = false;
+      if (toggle) toggle.classList.remove('on');
+      if (label) label.textContent = 'OFF';
+    }
+  } else {
+    if (badge) {
+        badge.textContent = 'DESCONECTADO';
+        badge.className = 'vpn-status-badge';
+    }
+    logVPN('Desconectando VPN...', 'vpn-log-line');
+    const apiBase = localStorage.getItem('godeyes_backend') || '';
+    try { await fetch(apiBase + '/api/proxy/system', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enable: false }) }); } catch(e) {}
+    try { await fetch(apiBase + '/api/proxy/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proxy: null }) }); } catch(e) {}
+    logVPN('Desconectado da VPN', 'vpn-log-line err');
   }
 }
 
-// ── Real Scan via Backend ──
-async function startRealScan() {
-  const range   = document.getElementById('scan-range')?.value || '127.0.0.1';
-  const ptType  = document.getElementById('pt-type')?.value;
-  const scanType = ptType === 'vuln' ? 'vuln' : 'fast'; // Use 'fast' (-sn) to avoid nmap privilege errors in standard mode
+async function connectProxy(i, type) {
+  if (!backendOnline) {
+    const setupModal = document.getElementById('setup-modal');
+    if (setupModal) {
+      if (typeof showGlobalNotification === 'function') {
+        showGlobalNotification('🌐 Proxy Real requer o Plugin. Abrindo assistente...', 'warn');
+      }
+      setupModal.classList.add('open');
+    }
+    checkIP();
+    return;
+  }
+  const pool = PROXY_POOL[type] || [];
+  const proxy = pool[i];
+  if (!proxy) return;
 
-  // Reset UI
-  document.getElementById('device-list').innerHTML = '';
-  document.getElementById('scan-progress-wrap').style.display = 'flex';
-  const fillEl   = document.getElementById('scan-progress-fill');
-  const labelEl  = document.getElementById('scan-progress-label');
-  const scanBtn  = document.getElementById('scan-btn');
-  if (scanBtn) { scanBtn.disabled = true; scanBtn.textContent = 'Escaneando...'; }
+  activeProxyIndex = i;
+  renderProxyPoolUI(type);
+
+  const ipEl = document.getElementById('current-ip');
+  const locEl = document.getElementById('current-ip-loc');
+  const barEl = document.getElementById('ip-meter-bar');
+
+  if (ipEl) ipEl.textContent = 'Conectando...';
 
   try {
-    // Start scan
-    const startRes = await fetch(API_BASE + '/scan/start', {
+    const apiBase = localStorage.getItem('godeyes_backend') || '';
+    const r = await fetch(apiBase + '/api/proxy/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target: range, type: scanType })
+      body: JSON.stringify({ addr: proxy.ip, proto: proxy.proto })
     });
-    const startData = await startRes.json();
-    if (!startRes.ok) {
-      if (typeof showGlobalNotification === 'function')
-        showGlobalNotification('❌ ' + (startData.error || 'Erro ao iniciar scan'), 'high');
-      finishScanUI();
-      return;
+    const data = await r.json();
+
+    if (data.connected) {
+      if (ipEl) ipEl.textContent = data.ip;
+      if (locEl) locEl.textContent = data.loc || 'Desconhecido';
+      if (barEl) barEl.style.width = '85%';
+      appendConsole(`[Proxy] Conectado via ${proxy.proto}://${proxy.ip} → IP: ${data.ip}`, 'success');
+    } else {
+      if (ipEl) ipEl.textContent = 'Falhou';
+      appendConsole(`[Proxy] Falha: ${data.error}`, 'error');
     }
-
-    // Poll for progress
-    scanPollInterval = setInterval(async () => {
-      try {
-        const statusRes = await fetch(API_BASE + '/scan/status');
-        const status = await statusRes.json();
-        if (fillEl) fillEl.style.width = (status.progress || 0) + '%';
-        if (labelEl) labelEl.textContent = status.message || 'Escaneando...';
-
-        if (!status.running) {
-          clearInterval(scanPollInterval);
-          // Fetch results
-          const resultRes = await fetch(API_BASE + '/scan/results');
-          const resultData = await resultRes.json();
-          renderRealDevices(resultData.devices || []);
-          finishScanUI(resultData.devices?.length || 0);
-          if (typeof saveScanToHistory === 'function') saveScanToHistory();
-        }
-      } catch (_) {
-        clearInterval(scanPollInterval);
-        finishScanUI();
-      }
-    }, 1500);
-
-  } catch (err) {
-    if (typeof showGlobalNotification === 'function')
-      showGlobalNotification('❌ Erro de conexão com backend: ' + err.message, 'high');
-    finishScanUI();
+  } catch(e) {
+    if (ipEl) ipEl.textContent = 'Erro';
+    appendConsole(`[Proxy] Erro: ${e.message}`, 'error');
   }
-}
-
-function finishScanUI(count) {
-  const scanBtn = document.getElementById('scan-btn');
-  if (scanBtn) { scanBtn.disabled = false; scanBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 3 A9 9 0 0 1 21 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="spin"/></svg> Iniciar Scan'; }
-  document.getElementById('scan-progress-wrap').style.display = 'none';
-  const labelEl = document.getElementById('scan-progress-label');
-  if (labelEl) labelEl.textContent = 'Escaneando...';
-  if (count !== undefined && typeof showGlobalNotification === 'function')
-    showGlobalNotification(`✅ Scan real concluído: ${count} dispositivos encontrados`, 'ok');
 }
 
 // ── Render Real Devices (reuses existing device renderer) ──
@@ -1217,7 +1432,15 @@ function renderRealDevices(devices) {
 }
 
 // Initialize Tunnel UI and Status
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Inicia auto-descoberta se estiver no Vercel
+  const isCloud = window.location.hostname.includes('vercel.app') || 
+                (window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('192.168.'));
+  
+  if (isCloud) {
+    await autoDiscoverBackend();
+  }
+
   // Try to connect immediately
   checkBackendStatus();
   
@@ -1225,9 +1448,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(checkBackendStatus, 5000);
 
   // If on Vercel and no backend, show help
-  const isCloud = window.location.hostname.includes('vercel.app') || 
-                (window.location.hostname !== 'localhost' && !window.location.hostname.startsWith('192.168.'));
-  
   if (isCloud && !localStorage.getItem('godeyes_backend')) {
     setTimeout(() => {
       if (typeof showGlobalNotification === 'function') {

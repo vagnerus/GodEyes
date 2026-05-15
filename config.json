@@ -1,0 +1,20 @@
+{
+  "app_name": "GodEyes",
+  "version": "2.0.0",
+  "theme": "midnight_cyber",
+  "scanner": {
+    "timeout": 3,
+    "max_devices": 255,
+    "ports_quick": "22,80,443,8080,3389,21,23,25,110,143",
+    "ports_full": "1-65535"
+  },
+  "proxy": {
+    "sources": ["https://www.proxy-list.download/api/v1/get?type=socks5","https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5"],
+    "test_url": "http://httpbin.org/ip",
+    "max_proxies": 50
+  },
+  "satellite": {
+    "tle_source": "https://celestrak.org/SOCRATES/query.php",
+    "refresh_interval": 60
+  }
+}
